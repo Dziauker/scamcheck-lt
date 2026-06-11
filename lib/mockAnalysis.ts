@@ -7,147 +7,22 @@ import {
 } from './types'
 import { generateCaseId } from './generateCaseId'
 import { analyzeUrl, extractFirstUrl } from './urlAnalysis'
+import { normalizeLt } from './textNormalize'
+import {
+  analyzeScamText,
+  maxLevel,
+  textHasSignal,
+  extractAmountEur,
+} from './scamEngine'
 
-// ─── Pattern groups ──────────────────────────────────────────────────────────
+// v0.2: text-based risk detection moved to lib/scamEngine.ts, which reads its
+// rules from knowledge/scamPatterns.ts and knowledge/riskSignals.ts. This file
+// keeps orchestration, the situation overlay, and the per-level prose.
+//
+// All phrase checks below run on normalized text (lowercase, no Lithuanian
+// diacritics) — see lib/textNormalize.ts.
 
-// Always kritinė: sensitive credentials or explicit confirmation-link phrasing.
-const CRITICAL_PHRASES = [
-  // Second factors / IDs
-  'smart-id', 'smartid', 'mobile-id', 'mobileid',
-
-  // Card data
-  'cvv', 'cvc kodas', 'cvc kods',
-  'kortelės numer', 'kortelės nr', 'kortelės duomen',
-
-  // Bank credentials
-  'prisijungimo duomen',
-  'įveskite slaptažodį', 'banko slaptaž', 'banko prisijungim', 'banko kod',
-  'slaptažod',
-
-  // Personal code
-  'asmens kodas', 'asmens nr.',
-
-  // Confirmation codes / actions
-  'patvirtinkite kodą', 'patvirtink kodą', 'įveskite kodą',
-  'patvirtinkite pavedimą', 'patvirtink pavedimą',
-  'patvirtinkite per nuorodą', 'patvirtink per nuorodą',
-  'patvirtinkite mokėjimą', 'patvirtinkite gavimą',
-  'gavote mokėjimą', 'mokėjimas atliktas',
-]
-
-// User indicates they already acted — treat as kritinė.
-const ALREADY_ACTED = [
-  'jau paspaudžiau', 'jau įvedžiau', 'jau patvirtinau',
-  'jau pervedžiau', 'jau apmokėjau', 'jau sumokėjau',
-]
-
-const OFF_PLATFORM_MESSENGERS = ['whatsapp', 'telegram', 'viber']
-const THIRD_PARTY_MONEY       = ['revolut', 'paypal', 'western union', 'moneygram']
-
-const PAYMENT_HINTS      = ['mokė', 'pervesk', 'sumok', 'apmokė', 'sąskait', 'pavedim']
-const DELIVERY_HINTS     = ['siunt', 'pristat', 'kurjer', 'muitin']
-const DEPOSIT_HINTS      = ['depozit', 'avans', 'užstat', 'rezervacij']
-const PRESSURE_HINTS     = [
-  'skubiai', 'nedelsiant', 'nedelsdami', 'tuoj',
-  'per valandą', 'per 24 val', 'per 2 val', 'šiandien dar', 'kuo greičiau',
-  'paskutinė galimybė', 'bus grąžinta', 'bus užblokuota', 'kitaip bus',
-]
-const CONFIRMATION_HINTS = ['patvirtin', 'confirm', 'verify', 'verifik']
-const ADDRESS_UPDATE     = ['atnaujinkite adres', 'atnaujinti adres', 'patikslinkite adres', 'pakeisti adres']
-
-// Brands a scam SMS might claim to be from (text-side, not URL-side).
-const COURIER_BANK_BRANDS_TEXT = [
-  'dpd', 'omniva', 'dhl', 'lp express', 'lpexpress', 'lietuvos paštas',
-  'seb', 'swedbank', 'luminor', 'paysera', 'revolut', 'šiaulių bankas', 'muitin',
-]
-
-// Standalone auksta patterns (no context required).
-const HIGH_PATTERNS = [
-  'bit.ly', 'tinyurl', 'cutt.ly', 'rb.gy',
-  'draudimo mokestis', 'siuntimo draudimas', 'insurance fee', 'apsauga mokestis',
-  'depozitas', 'avansas', 'rezervacinis mokestis', 'užstatas',
-  'muito mokestis', 'sulaikyta siunta', 'muitinė: ', 'muitinės pranešimas',
-  'sąskaita sustabdyta', 'paskyra sustabdyta', 'laikinai blokuota', 'laikinai sustabdyta',
-  'reikia sumokėti', 'sumokėkite mokestį', 'sumokėkite papildomą',
-  'kurjerį atsiųsiu', 'atsiimsiu kurjerias',
-  'ne per platformą', 'ne per vinted', 'ne per facebook',
-]
-
-const has = (text: string, arr: string[]) => arr.some(k => text.includes(k))
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-const LEVEL_ORDER: RiskLevel[] = ['zema', 'vidutine', 'auksta', 'kritine']
-const maxLevel = (a: RiskLevel, b: RiskLevel): RiskLevel =>
-  LEVEL_ORDER.indexOf(a) >= LEVEL_ORDER.indexOf(b) ? a : b
-
-// Extracts an amount in EUR if present (handles "400€", "€ 200", "200 eur").
-function extractAmountEur(t: string): number {
-  const m = t.match(/(\d{1,5})\s*(?:€|eur\b|eurai|eurų|euro)/i)
-                  ?? t.match(/€\s*(\d{1,5})/i)
-  return m ? parseInt(m[1], 10) : 0
-}
-
-// ─── Risk detection (text + situation) ───────────────────────────────────────
-
-function detectBaseRisk(text: string, category: string, hasUrl: boolean): RiskLevel {
-  const t = text.toLowerCase()
-
-  // ── KRITINĖ ────────────────────────────────────────────────────────────────
-  if (has(t, CRITICAL_PHRASES)) return 'kritine'
-  if (has(t, ALREADY_ACTED))    return 'kritine'
-
-  // Any URL + payment / confirmation language → kritinė
-  if (hasUrl && (has(t, PAYMENT_HINTS) || has(t, CONFIRMATION_HINTS))) return 'kritine'
-
-  // Courier / post / bank impersonation in text + URL + (payment OR address update) → kritinė
-  const claimsBrand = has(t, COURIER_BANK_BRANDS_TEXT)
-  if (claimsBrand && hasUrl && (has(t, PAYMENT_HINTS) || has(t, ADDRESS_UPDATE))) {
-    return 'kritine'
-  }
-
-  // Rental scam: rent + deposit + (abroad OR large amount) → kritinė
-  const rentContext = /\b(butas|butą|nuoma|nuom\w*|savinink\w*)\b/i.test(t)
-  const depositCtx  = has(t, DEPOSIT_HINTS)
-  const abroad      = /užsieny|užsieni|abroad/i.test(t)
-  const largeAmount = extractAmountEur(t) >= 200
-  if (rentContext && depositCtx && (abroad || largeAmount)) return 'kritine'
-
-  // ── Contextual flags ───────────────────────────────────────────────────────
-  const offPlatform = has(t, OFF_PLATFORM_MESSENGERS)
-  const thirdParty  = has(t, THIRD_PARTY_MONEY)
-  const hasPayment  = has(t, PAYMENT_HINTS)
-  const hasDelivery = has(t, DELIVERY_HINTS)
-  const hasPressure = has(t, PRESSURE_HINTS)
-
-  // ── AUKŠTA ─────────────────────────────────────────────────────────────────
-
-  // Off-platform / third-party money + risky context → auksta
-  if ((offPlatform || thirdParty) &&
-      (hasPayment || hasDelivery || depositCtx || hasPressure || hasUrl)) {
-    return 'auksta'
-  }
-
-  // Pressure + payment ("nedelsdami perveskite") → auksta
-  if (hasPressure && hasPayment) return 'auksta'
-
-  // Claimed brand + URL alone → auksta (not enough for kritinė without payment / address update)
-  if (claimsBrand && hasUrl) return 'auksta'
-
-  if (has(t, HIGH_PATTERNS)) return 'auksta'
-  if (category === 'sms' && hasPayment) return 'auksta'
-
-  // ── VIDUTINĖ ───────────────────────────────────────────────────────────────
-
-  if ((category === 'vinted' || category === 'facebook_marketplace') && offPlatform) {
-    return 'vidutine'
-  }
-  if (offPlatform || thirdParty)         return 'vidutine'
-  if (category === 'payment_request')    return 'vidutine'
-  if (hasPressure)                       return 'vidutine'
-
-  return 'zema'
-}
+// ─── Situation overlay ───────────────────────────────────────────────────────
 
 function applySituation(base: RiskLevel, situation: Situation): RiskLevel {
   // Severe situations always force kritinė. A severe situation may NEVER be downgraded.
@@ -214,23 +89,23 @@ function buildDoNow(level: RiskLevel): string[] {
 type ContentResult = Omit<
   AnalysisResult,
   | 'case_id' | 'analyzed_at' | 'category' | 'situation' | 'analysis_type'
-  | 'url_analysis' | 'disclaimer' | 'quick_answers' | 'do_now'
+  | 'url_analysis' | 'disclaimer' | 'quick_answers' | 'do_now' | 'detected_scam_types'
 >
 
 function buildContent(level: RiskLevel, text: string, _category: string): ContentResult {
-  const t = text.toLowerCase()
+  const t = normalizeLt(text)
 
   const hasSmartId   = t.includes('smart-id') || t.includes('mobile-id')
   const hasLink      = t.includes('nuorod') || t.includes('http') || t.includes('spausk')
                        || /\b[a-z0-9][a-z0-9-]*\.[a-z]{2,24}\b/i.test(t)
-  const hasPayment   = t.includes('mokė') || t.includes('pervesk') || t.includes('sumok')
-  const hasDeposit   = t.includes('depozit') || t.includes('avans') || t.includes('užstat') || t.includes('rezervacij')
+  const hasPayment   = t.includes('moke') || t.includes('perves') || t.includes('sumok')
+  const hasDeposit   = t.includes('depozit') || t.includes('avans') || t.includes('uzstat') || t.includes('rezervacij')
   const hasCourier   = t.includes('kurjer') || t.includes('siunt') || t.includes('pristat')
-  const hasBank      = t.includes('bank') || t.includes('sąskait') || t.includes('paskyra')
+  const hasBank      = t.includes('bank') || t.includes('saskait') || t.includes('paskyra')
   const hasEscape    = t.includes('whatsapp') || t.includes('telegram') || t.includes('viber')
-  const hasAbroad    = t.includes('užsieny')
-  const alreadyActed = t.includes('jau paspaudžiau') || t.includes('jau įvedžiau') || t.includes('jau patvirtinau')
-                       || t.includes('jau pervedžiau') || t.includes('jau sumokėjau') || t.includes('jau apmokėjau')
+  const hasAbroad    = t.includes('uzsieny')
+  const alreadyActed = t.includes('jau paspaudziau') || t.includes('jau ivedziau') || t.includes('jau patvirtinau')
+                       || t.includes('jau pervedziau') || t.includes('jau sumokejau') || t.includes('jau apmokejau')
 
   switch (level) {
 
@@ -275,7 +150,9 @@ function buildContent(level: RiskLevel, text: string, _category: string): Conten
         'Jei žinutė atėjo per platformą — praneškit platformos palaikymui',
         'Pasitarkite su kitu žmogumi prieš ką nors darydami',
       ],
-      safe_reply: 'Nerekomenduojama atrašyti. Blokuokite kontaktą ir praneškite platformai.',
+      safe_reply:
+        'Nerekomenduojama atrašyti. Nespauskite nuorodų, neveskite kortelės ar Smart-ID duomenų, '
+        + 'blokuokite siuntėją ir kreipkitės į banką, jei jau pateikėte duomenis.',
       next_steps: [
         ...(alreadyActed ? ['Nedelsdami susisiekite su savo banku ir paprašykite blokuoti korteles bei sąskaitą'] : []),
         'Neimkitės jokių veiksmų — nei spaudžiant, nei pervedant, nei atsakant',
@@ -408,6 +285,8 @@ function buildContent(level: RiskLevel, text: string, _category: string): Conten
 
 // ─── Human-review escalation based on situation / amount / URL ───────────────
 
+const RENT_CONTEXT_RE = /\b(butas|buta|nuom\w*)\b/
+
 function adjustHumanReview(
   content: ContentResult,
   level: RiskLevel,
@@ -415,9 +294,9 @@ function adjustHumanReview(
   situation: Situation,
   urlVerdict: 'suspicious' | 'unknown' | 'no_flags_found' | undefined,
 ) {
-  const t = text.toLowerCase()
-  const rentContext = /\b(butas|butą|nuoma|nuom\w*)\b/i.test(t)
-  const depositCtx  = ['depozit', 'avans', 'užstat', 'rezervacij'].some(k => t.includes(k))
+  const t = normalizeLt(text)
+  const rentContext = RENT_CONTEXT_RE.test(t)
+  const depositCtx  = textHasSignal(text, 'deposit')
   const largeAmount = extractAmountEur(t) >= 200
 
   let recommend = content.human_review.recommended
@@ -465,8 +344,9 @@ export function getMockAnalysis(input: SubmissionInput): AnalysisResult {
   const rawUrl = input.url?.trim() || extractFirstUrl(input.text)
   const urlAnalysis = rawUrl ? analyzeUrl(rawUrl) : undefined
 
-  // Step 1 — base risk from text + category + URL presence
-  let level = detectBaseRisk(input.text, input.category, !!rawUrl)
+  // Step 1 — text-based risk + scam-type detection (rule waterfall + knowledge base)
+  const engine = analyzeScamText(input.text, input.category, !!rawUrl)
+  let level = engine.level
 
   // Step 2 — URL-based escalation (upgrade only)
   if (urlAnalysis) {
@@ -498,6 +378,7 @@ export function getMockAnalysis(input: SubmissionInput): AnalysisResult {
     quick_answers: quickAnswers,
     do_now: doNow,
     url_analysis: urlAnalysis,
+    detected_scam_types: engine.detectedTypes,
     disclaimer:
       'Ši analizė yra demo vertinimas — simuliuotas AI pirminis vertinimas šiame prototipe. ' +
       'ScamCheck LT nėra bankas, policija, teisinis patarėjas ar garantuotas sukčiavimo detektorius. ' +

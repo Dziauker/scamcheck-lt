@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { AnalysisResult, RiskLevel, QuickAnswer, UrlAnalysisResult } from '@/lib/types'
+import { AnalysisResult, RiskLevel, QuickAnswer, UrlAnalysisResult, DetectedScamType } from '@/lib/types'
 import { getCategoryLabel } from '@/constants/categories'
 
 // ─── Risk config ─────────────────────────────────────────────────────────────
@@ -175,6 +175,14 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
             ))}
           </div>
         </Section>
+      )}
+
+      {/* ── v0.2: Detected scam types ── */}
+      {result.detected_scam_types && result.detected_scam_types.length > 0 && (
+        <DetectedScamTypesSection
+          types={result.detected_scam_types}
+          riskLevel={result.risk_level}
+        />
       )}
 
       {/* ── Do not do ── */}
@@ -420,6 +428,95 @@ function Section({
       </h2>
       {children}
     </div>
+  )
+}
+
+// ─── v0.2: Detected scam types ───────────────────────────────────────────────
+
+const STRENGTH_LABEL: Record<DetectedScamType['match_strength'], string> = {
+  galimas:   'Galimas',
+  tiketinas: 'Tikėtinas',
+}
+
+function DetectedScamTypesSection({
+  types, riskLevel,
+}: {
+  types: DetectedScamType[]
+  riskLevel: RiskLevel
+}) {
+  const multiple = types.length > 1
+  // For high / critical risk, make the safe action visually prominent.
+  const prominentSafeAction = riskLevel === 'auksta' || riskLevel === 'kritine'
+
+  return (
+    <Section
+      title={multiple ? 'Atpažinti sukčiavimo tipai' : 'Atpažintas sukčiavimo tipas'}
+      emoji="🎭"
+    >
+      {/* Non-overclaiming framing: these are detected signals, not proof */}
+      <p className="text-xs text-gray-500 leading-relaxed mb-4">
+        Pagal tekstą aptikti šie galimi sukčiavimo požymiai. Tai demo vertinimas — ne patvirtintas faktas.
+      </p>
+
+      <div className="space-y-3">
+        {types.map(type => (
+          <div key={type.id} className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 space-y-3">
+            {/* Name + certainty badge ("galimas" / "tikėtinas" sukčiavimo tipas) */}
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="font-bold text-gray-800 text-[15px] leading-snug">{type.name_lt}</h3>
+              <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-white border border-gray-200 text-gray-500 uppercase tracking-wide flex-shrink-0">
+                {STRENGTH_LABEL[type.match_strength]}
+              </span>
+            </div>
+
+            {/* Short explanation */}
+            <p className="text-sm text-gray-600 leading-relaxed">{type.explanation_lt}</p>
+
+            {/* What the scammer wants */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 mb-1 flex items-center gap-1.5">
+                <span aria-hidden="true">🎯</span> Ko siekia sukčius
+              </p>
+              <p className="text-sm text-gray-700 leading-snug">{type.scammer_goal_lt}</p>
+            </div>
+
+            {/* Recommended safe action — prominent on high / critical risk */}
+            <div className={
+              prominentSafeAction
+                ? 'bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5'
+                : ''
+            }>
+              <p className={`text-xs font-semibold mb-1 flex items-center gap-1.5 ${
+                prominentSafeAction ? 'text-emerald-800' : 'text-gray-500'
+              }`}>
+                <span aria-hidden="true">🛡️</span> Saugus veiksmas
+              </p>
+              <p className={`text-sm leading-snug ${
+                prominentSafeAction ? 'text-emerald-900 font-medium' : 'text-gray-700'
+              }`}>
+                {type.safe_action_lt}
+              </p>
+            </div>
+
+            {/* Source labels — small muted tags, explicitly not official proof */}
+            {type.source_labels_lt.length > 0 && (
+              <div className="pt-1">
+                <p className="text-[10px] text-gray-400 mb-1.5">
+                  Susiję šaltinių tipai (ne įrodymas):
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {type.source_labels_lt.map((label, i) => (
+                    <span key={i} className="text-[10px] bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </Section>
   )
 }
 

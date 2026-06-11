@@ -1,5 +1,36 @@
 export type RiskLevel = 'zema' | 'vidutine' | 'auksta' | 'kritine'
 
+// v0.2 — structured scam knowledge base category ids (see knowledge/scamPatterns.ts)
+export type ScamCategoryId =
+  | 'courier_customs'
+  | 'bank_account_block'
+  | 'marketplace_fake_payment'
+  | 'rental_deposit'
+  | 'investment_crypto'
+  | 'fake_job'
+  | 'romance'
+  | 'family_emergency'
+  | 'gov_impersonation'
+  | 'utility_fine'
+  | 'voice_deepfake'
+  | 'invoice_bec'
+  | 'shortlink_domain'
+
+// v0.2 — a scam scheme the engine recognized in the text.
+// match_strength wording is deliberately uncertain ("galimas" / "tikėtinas"):
+// the demo never claims certainty.
+export interface DetectedScamType {
+  id: ScamCategoryId
+  name_lt: string
+  explanation_lt: string
+  scammer_goal_lt: string
+  safe_action_lt: string
+  matched_red_flags_lt: string[]
+  match_strength: 'galimas' | 'tiketinas'
+  score: number
+  source_labels_lt: string[]
+}
+
 export type MessageCategory =
   | 'vinted'
   | 'facebook_marketplace'
@@ -63,6 +94,9 @@ export interface AnalysisResult {
   next_steps: string[]
   human_review: HumanReview
   url_analysis?: UrlAnalysisResult
+  // v0.2 — scam schemes recognized by the knowledge base (sorted by score desc).
+  // Optional so results stored before v0.2 still parse.
+  detected_scam_types?: DetectedScamType[]
   disclaimer: string
 }
 
