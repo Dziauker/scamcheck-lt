@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AnalysisResult, RiskLevel, QuickAnswer, UrlAnalysisResult, DetectedScamType } from '@/lib/types'
 import { getCategoryLabel } from '@/constants/categories'
+import { PUBLIC_VERSION_LABEL } from '@/constants/appMeta'
 
 // ─── Risk config ─────────────────────────────────────────────────────────────
 
@@ -284,8 +285,7 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
         <p className="text-xs text-gray-500 leading-relaxed">{result.disclaimer}</p>
         <div className="flex flex-wrap gap-1.5">
           <Chip>Simuliuotas AI vertinimas</Chip>
-          <Chip>ScamCheck LT v0.1</Chip>
-          <Chip>Prototipas</Chip>
+          <Chip>ScamCheck LT {PUBLIC_VERSION_LABEL}</Chip>
         </div>
       </div>
 

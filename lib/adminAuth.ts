@@ -64,6 +64,10 @@ export function sessionCookie() {
       httpOnly: true,
       sameSite: 'lax' as const,
       secure: process.env.NODE_ENV === 'production',
+      // Path stays '/' deliberately: Next emits only one Set-Cookie per name,
+      // so logout could never clear both a narrower '/admin' cookie and any
+      // pre-existing '/' cookie. RFC 6265 path is not a security boundary;
+      // httpOnly + secure + sameSite carry the protection here.
       path: '/',
       maxAge: COOKIE_MAX_AGE,
     },

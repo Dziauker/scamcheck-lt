@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { PUBLIC_VERSION_LABEL } from '@/constants/appMeta'
 
 interface HeaderProps {
   showBack?: boolean  // FIX H4: show back link on result page
@@ -14,7 +15,7 @@ export default function Header({ showBack = false }: HeaderProps) {
           <ShieldLogo />
           <span className="font-bold text-base tracking-tight leading-none">ScamCheck LT</span>
           <span className="hidden sm:inline text-[10px] font-mono text-blue-300 bg-blue-900/60 px-1.5 py-0.5 rounded uppercase tracking-wider">
-            PROTOTIPAS
+            {PUBLIC_VERSION_LABEL}
           </span>
         </Link>
 
@@ -31,7 +32,7 @@ export default function Header({ showBack = false }: HeaderProps) {
           )}
           {!showBack && (
             <span className="text-[10px] font-mono text-blue-300 uppercase tracking-wider sm:hidden">
-              v0.1
+              {PUBLIC_VERSION_LABEL}
             </span>
           )}
         </div>
