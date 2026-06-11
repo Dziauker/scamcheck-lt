@@ -5,6 +5,7 @@
 // cross-category risk signals) so it can be inspected in the browser instead of
 // in source files. It does NOT edit, save or change any detection behaviour.
 
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { isAdminAuthenticated } from '@/lib/adminAuth'
 import { APP_VERSION, KNOWLEDGE_BASE_VERSION } from '@/constants/appMeta'
@@ -73,6 +74,24 @@ export default function AdminDashboardPage() {
           <li>• Šie duomenys naudojami scam detection engine.</li>
         </ul>
       </div>
+
+      {/* ── Trend Manager entry (v0.5) ── */}
+      <Link
+        href="/admin/trends"
+        className="block bg-white border border-slate-200 rounded-xl px-4 py-3.5 hover:border-brand hover:bg-slate-50 transition-colors"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <span aria-hidden="true">🧪</span> Admin trendai
+            </p>
+            <p className="text-xs text-slate-500 mt-0.5 leading-snug">
+              Rankiniu būdu pridėkite naujus scam trendus (draft). Dar neveikia viešoje analizėje.
+            </p>
+          </div>
+          <span className="text-slate-400 text-sm flex-shrink-0">→</span>
+        </div>
+      </Link>
 
       {/* ── Overview stats ── */}
       <section>

@@ -5,6 +5,7 @@
 // accents) so it never reads like public user-facing content.
 
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { isAdminAuthenticated } from '@/lib/adminAuth'
 import { ADMIN_PANEL_VERSION } from '@/constants/appMeta'
 import { logoutAction } from './actions'
@@ -42,6 +43,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </form>
           )}
         </div>
+
+        {authed && (
+          <nav className="bg-slate-800/60 border-t border-slate-700">
+            <div className="max-w-3xl mx-auto px-4 flex items-center gap-1">
+              <Link
+                href="/admin"
+                className="text-xs font-semibold text-slate-300 hover:text-white py-2.5 px-3 border-b-2 border-transparent hover:border-slate-500 transition-colors"
+              >
+                Apžvalga
+              </Link>
+              <Link
+                href="/admin/trends"
+                className="text-xs font-semibold text-slate-300 hover:text-white py-2.5 px-3 border-b-2 border-transparent hover:border-slate-500 transition-colors"
+              >
+                Admin trendai
+              </Link>
+            </div>
+          </nav>
+        )}
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6">{children}</main>
