@@ -3,14 +3,13 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AnalysisResult, RiskLevel, QuickAnswer, UrlAnalysisResult, DetectedScamType } from '@/lib/types'
-import { getCategoryLabel } from '@/constants/categories'
 import { PUBLIC_VERSION_LABEL } from '@/constants/appMeta'
+import { useLanguage } from '@/lib/i18n/useLanguage'
 
-// ─── Risk config ─────────────────────────────────────────────────────────────
+// ─── Risk config (visual only — display label comes from translations) ───────
 
 const RISK = {
   zema: {
-    label:      'ŽEMA RIZIKA',
     badgeBg:    'bg-risk-low',
     sectionBg:  'bg-risk-low-bg',
     border:     'border-risk-low-border',
@@ -19,7 +18,6 @@ const RISK = {
     icon:       '✓',
   },
   vidutine: {
-    label:      'VIDUTINĖ RIZIKA',
     badgeBg:    'bg-risk-mid',
     sectionBg:  'bg-risk-mid-bg',
     border:     'border-risk-mid-border',
@@ -28,7 +26,6 @@ const RISK = {
     icon:       '!',
   },
   auksta: {
-    label:      'AUKŠTA RIZIKA',
     badgeBg:    'bg-risk-high',
     sectionBg:  'bg-risk-high-bg',
     border:     'border-risk-high-border',
@@ -37,7 +34,6 @@ const RISK = {
     icon:       '!!',
   },
   kritine: {
-    label:      'KRITINĖ RIZIKA',
     badgeBg:    'bg-risk-crit',
     sectionBg:  'bg-risk-crit-bg',
     border:     'border-risk-crit-border',
@@ -46,7 +42,6 @@ const RISK = {
     icon:       '!!!',
   },
 } satisfies Record<RiskLevel, {
-  label: string
   badgeBg: string
   sectionBg: string
   border: string
@@ -55,18 +50,19 @@ const RISK = {
   icon: string
 }>
 
-// ─── Quick answer config (FIX H1) ────────────────────────────────────────────
+// ─── Quick answer config (FIX H1) — colours only; label is translated ────────
 
-const QA_LABELS: Record<QuickAnswer, { label: string; bg: string; text: string }> = {
-  ne:       { label: 'NE',       bg: 'bg-red-100',    text: 'text-red-700' },
-  atsargiai:{ label: 'ATSARGIAI',bg: 'bg-amber-100',  text: 'text-amber-700' },
-  taip:     { label: 'TAIP',     bg: 'bg-emerald-100',text: 'text-emerald-700' },
-  nezinoma: { label: '—',        bg: 'bg-gray-100',   text: 'text-gray-500' },
+const QA_STYLE: Record<QuickAnswer, { bg: string; text: string }> = {
+  ne:       { bg: 'bg-red-100',     text: 'text-red-700' },
+  atsargiai:{ bg: 'bg-amber-100',   text: 'text-amber-700' },
+  taip:     { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+  nezinoma: { bg: 'bg-gray-100',    text: 'text-gray-500' },
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ResultDisplay({ caseId }: { caseId: string }) {
+  const { t } = useLanguage()
   const [result, setResult] = useState<AnalysisResult | null>(null)
   const [copied, setCopied] = useState(false)
   const [showHumanReview, setShowHumanReview] = useState(false)
@@ -81,8 +77,8 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center">
         <p className="text-5xl mb-4">🗑️</p>
-        <p className="font-semibold text-gray-700 mb-1">Byla ištrinta.</p>
-        <Link href="/" className="text-brand text-sm underline">Grįžti į pradžią</Link>
+        <p className="font-semibold text-gray-700 mb-1">{t.result.deleted}</p>
+        <Link href="/" className="text-brand text-sm underline">{t.result.deletedLink}</Link>
       </div>
     )
   }
@@ -90,8 +86,8 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
   if (!result) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center">
-        <p className="text-gray-500 mb-3">Byla nerasta arba baigėsi sesija.</p>
-        <Link href="/" className="text-brand text-sm underline">Tikrinti naują žinutę</Link>
+        <p className="text-gray-500 mb-3">{t.result.notFound}</p>
+        <Link href="/" className="text-brand text-sm underline">{t.result.notFoundLink}</Link>
       </div>
     )
   }
@@ -109,8 +105,8 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
     setCaseDeleted(true)
   }
 
-  // FIX H3: human-readable category label
-  const categoryLabel = getCategoryLabel(result.category)
+  // FIX H3: human-readable category label (translated chrome; engine prose stays LT)
+  const categoryLabel = t.result.categoryNames[result.category]
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-5 pb-10 space-y-3.5 animate-fade-in">
@@ -133,17 +129,17 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
           <div className="w-9 h-9 rounded-full bg-white/25 flex items-center justify-center font-black text-sm flex-shrink-0">
             {R.icon}
           </div>
-          <p className="text-2xl font-black tracking-tight leading-none">{R.label}</p>
+          <p className="text-2xl font-black tracking-tight leading-none">{t.result.riskLabels[result.risk_level]}</p>
         </div>
 
-        {/* Verdict */}
+        {/* Verdict (engine-generated, Lithuanian) */}
         <p className="text-sm font-medium leading-relaxed bg-white/15 rounded-xl px-4 py-3">
           {result.short_verdict}
         </p>
 
         {/* Timestamp */}
         <p className="text-xs opacity-50 mt-2 font-mono">
-          {new Date(result.analyzed_at).toLocaleString('lt-LT')} · Demo vertinimas
+          {new Date(result.analyzed_at).toLocaleString(t.dateLocale)} · {t.result.demoVerdictLabel}
         </p>
       </div>
 
@@ -155,7 +151,7 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
 
       {/* ── Red flags ── */}
       {result.red_flags.length > 0 && (
-        <Section title="Raudonos vėliavėlės" emoji="⚠️" className={`${R.sectionBg} border ${R.border}`}>
+        <Section title={t.result.redFlagsTitle} emoji="⚠️" className={`${R.sectionBg} border ${R.border}`}>
           <ul className="space-y-2">
             {result.red_flags.map((flag, i) => (
               <li key={i} className="flex items-start gap-2.5 text-sm">
@@ -169,7 +165,7 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
 
       {/* ── Why suspicious ── */}
       {result.why_suspicious.length > 0 && (
-        <Section title="Kodėl tai įtartina" emoji="🔍">
+        <Section title={t.result.whySuspiciousTitle} emoji="🔍">
           <div className="space-y-2">
             {result.why_suspicious.map((p, i) => (
               <p key={i} className="text-sm text-gray-700 leading-relaxed">{p}</p>
@@ -188,7 +184,7 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
 
       {/* ── Do not do ── */}
       {result.do_not_do.length > 0 && (
-        <Section title="Ko nedaryti" emoji="🚫" className="bg-red-50 border border-red-200">
+        <Section title={t.result.doNotDoTitle} emoji="🚫" className="bg-red-50 border border-red-200">
           <ul className="space-y-2">
             {result.do_not_do.map((item, i) => (
               <li key={i} className="flex items-start gap-2.5 text-sm">
@@ -201,7 +197,7 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
       )}
 
       {/* ── Verify ── */}
-      <Section title="Ką patikrinti prieš veikiant" emoji="✅">
+      <Section title={t.result.verifyTitle} emoji="✅">
         {/* FIX M2: static numbered bullets, not fake checkboxes */}
         <ol className="space-y-2">
           {result.verify_before_acting.map((step, i) => (
@@ -217,13 +213,13 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
 
       {/* ── Safe reply / no-reply guidance ── */}
       {result.risk_level === 'kritine' ? (
-        <Section title="Atsakymas" emoji="🚫" className="bg-red-50 border border-red-200">
+        <Section title={t.result.replyTitleCritical} emoji="🚫" className="bg-red-50 border border-red-200">
           <p className="text-sm text-red-800 font-medium leading-relaxed">
             {result.safe_reply}
           </p>
         </Section>
       ) : (
-        <Section title="Saugus atsakymo variantas" emoji="💬">
+        <Section title={t.result.safeReplyTitle} emoji="💬">
           <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3.5 mb-3">
             <p className="text-sm text-gray-700 italic leading-relaxed">
               „{result.safe_reply}"
@@ -233,13 +229,13 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
             onClick={copyReply}
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold transition-colors"
           >
-            {copied ? '✓ Nukopijuota' : '📋 Kopijuoti atsakymą'}
+            {copied ? t.result.copied : t.result.copyReply}
           </button>
         </Section>
       )}
 
       {/* ── Next steps ── */}
-      <Section title="Rekomenduojami veiksmai" emoji="📋">
+      <Section title={t.result.nextStepsTitle} emoji="📋">
         <ol className="space-y-2">
           {result.next_steps.map((step, i) => (
             <li key={i} className="flex items-start gap-3 text-sm">
@@ -263,7 +259,7 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
           <div className="flex gap-3 mb-4">
             <span className="text-2xl flex-shrink-0">👁️</span>
             <div>
-              <p className="font-semibold text-blue-900">Rekomenduojama žmogaus peržiūra</p>
+              <p className="font-semibold text-blue-900">{t.result.humanReviewTitle}</p>
               <p className="text-sm text-blue-700 mt-1 leading-relaxed">{result.human_review.reason}</p>
             </div>
           </div>
@@ -271,7 +267,7 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
             onClick={() => setShowHumanReview(true)}
             className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm transition-colors"
           >
-            Prašyti žmogaus peržiūros →
+            {t.result.humanReviewCta}
           </button>
         </div>
       )}
@@ -280,11 +276,11 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
         <HumanReviewForm caseId={result.case_id} onClose={() => setShowHumanReview(false)} />
       )}
 
-      {/* ── Disclaimer ── */}
+      {/* ── Disclaimer (text is engine-generated, Lithuanian) ── */}
       <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
         <p className="text-xs text-gray-500 leading-relaxed">{result.disclaimer}</p>
         <div className="flex flex-wrap gap-1.5">
-          <Chip>Simuliuotas AI vertinimas</Chip>
+          <Chip>{t.result.disclaimerChip1}</Chip>
           <Chip>ScamCheck LT {PUBLIC_VERSION_LABEL}</Chip>
         </div>
       </div>
@@ -295,12 +291,12 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
           href="/"
           className="flex-1 py-3 text-center rounded-xl border-2 border-gray-200 hover:border-gray-300 text-gray-700 font-semibold text-sm transition-colors"
         >
-          ↩ Tikrinti kitą žinutę
+          {t.result.checkAnother}
         </Link>
         <button
           onClick={deleteCase}
           className="px-4 py-3 rounded-xl border-2 border-red-200 hover:bg-red-50 text-red-600 font-semibold text-sm transition-colors"
-          title="Ištrinti bylą"
+          title={t.result.deleteTitle}
         >
           🗑️
         </button>
@@ -312,7 +308,7 @@ export default function ResultDisplay({ caseId }: { caseId: string }) {
 // ─── Ką daryti dabar — per-level action block ────────────────────────────────
 
 const DO_NOW_STYLE: Record<RiskLevel, {
-  wrap: string; title: string; pillBg: string; pillText: string; itemText: string; emoji: string; heading: string
+  wrap: string; title: string; pillBg: string; pillText: string; itemText: string; emoji: string
 }> = {
   kritine:  {
     wrap:     'bg-red-50 border border-red-200',
@@ -321,7 +317,6 @@ const DO_NOW_STYLE: Record<RiskLevel, {
     pillText: 'text-white',
     itemText: 'text-red-900',
     emoji:    '🚨',
-    heading:  'Ką daryti dabar',
   },
   auksta: {
     wrap:     'bg-orange-50 border border-orange-200',
@@ -330,7 +325,6 @@ const DO_NOW_STYLE: Record<RiskLevel, {
     pillText: 'text-white',
     itemText: 'text-orange-900',
     emoji:    '⚠️',
-    heading:  'Ką daryti dabar',
   },
   vidutine: {
     wrap:     'bg-amber-50 border border-amber-200',
@@ -339,7 +333,6 @@ const DO_NOW_STYLE: Record<RiskLevel, {
     pillText: 'text-white',
     itemText: 'text-amber-900',
     emoji:    '🔎',
-    heading:  'Ką daryti dabar',
   },
   zema: {
     wrap:     'bg-emerald-50 border border-emerald-200',
@@ -348,17 +341,17 @@ const DO_NOW_STYLE: Record<RiskLevel, {
     pillText: 'text-white',
     itemText: 'text-emerald-900',
     emoji:    '✅',
-    heading:  'Ką daryti dabar',
   },
 }
 
 function DoNowBlock({ riskLevel, items }: { riskLevel: RiskLevel; items: string[] }) {
+  const { t } = useLanguage()
   const s = DO_NOW_STYLE[riskLevel]
   return (
     <div className={`rounded-2xl p-5 ${s.wrap}`}>
       <h2 className={`font-bold mb-3 text-sm flex items-center gap-2 ${s.title}`}>
         <span aria-hidden="true">{s.emoji}</span>
-        {s.heading}
+        {t.result.doNowHeading}
       </h2>
       <ul className="space-y-2">
         {items.map((item, i) => (
@@ -380,26 +373,27 @@ function QuickAnswersBlock({ answers, hasUrl }: {
   answers: AnalysisResult['quick_answers']
   hasUrl: boolean
 }) {
+  const { t } = useLanguage()
   const rows: Array<{ question: string; answer: QuickAnswer; show: boolean }> = [
-    { question: 'Ar spausti nuorodą?', answer: answers.clickLink,   show: hasUrl || answers.clickLink !== 'nezinoma' },
-    { question: 'Ar mokėti?',          answer: answers.pay,          show: true },
-    { question: 'Ar atrašyti?',        answer: answers.reply,        show: true },
-    { question: 'Žmogaus peržiūra?',   answer: answers.humanReview,  show: true },
+    { question: t.result.quickQuestions.clickLink,   answer: answers.clickLink,   show: hasUrl || answers.clickLink !== 'nezinoma' },
+    { question: t.result.quickQuestions.pay,         answer: answers.pay,          show: true },
+    { question: t.result.quickQuestions.reply,       answer: answers.reply,        show: true },
+    { question: t.result.quickQuestions.humanReview, answer: answers.humanReview,  show: true },
   ]
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-5">
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-        Greiti atsakymai
+        {t.result.quickAnswersTitle}
       </p>
       <div className="space-y-2.5">
         {rows.filter(r => r.show).map(({ question, answer }) => {
-          const qa = QA_LABELS[answer]
+          const style = QA_STYLE[answer]
           return (
             <div key={question} className="flex items-center justify-between gap-3">
               <span className="text-sm text-gray-700">{question}</span>
-              <span className={`text-xs font-black px-3 py-1 rounded-full flex-shrink-0 ${qa.bg} ${qa.text}`}>
-                {qa.label}
+              <span className={`text-xs font-black px-3 py-1 rounded-full flex-shrink-0 ${style.bg} ${style.text}`}>
+                {t.result.quickAnswerLabels[answer]}
               </span>
             </div>
           )
@@ -433,49 +427,45 @@ function Section({
 
 // ─── v0.2: Detected scam types ───────────────────────────────────────────────
 
-const STRENGTH_LABEL: Record<DetectedScamType['match_strength'], string> = {
-  galimas:   'Galimas',
-  tiketinas: 'Tikėtinas',
-}
-
 function DetectedScamTypesSection({
   types, riskLevel,
 }: {
   types: DetectedScamType[]
   riskLevel: RiskLevel
 }) {
+  const { t } = useLanguage()
   const multiple = types.length > 1
   // For high / critical risk, make the safe action visually prominent.
   const prominentSafeAction = riskLevel === 'auksta' || riskLevel === 'kritine'
 
   return (
     <Section
-      title={multiple ? 'Atpažinti sukčiavimo tipai' : 'Atpažintas sukčiavimo tipas'}
+      title={multiple ? t.result.detectedTitleMultiple : t.result.detectedTitleSingle}
       emoji="🎭"
     >
       {/* Non-overclaiming framing: these are detected signals, not proof */}
       <p className="text-xs text-gray-500 leading-relaxed mb-4">
-        Pagal tekstą aptikti šie galimi sukčiavimo požymiai. Tai demo vertinimas — ne patvirtintas faktas.
+        {t.result.detectedIntro}
       </p>
 
       <div className="space-y-3">
         {types.map(type => (
           <div key={type.id} className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 space-y-3">
-            {/* Name + certainty badge ("galimas" / "tikėtinas" sukčiavimo tipas) */}
+            {/* Name + certainty badge (engine-generated name stays Lithuanian) */}
             <div className="flex items-start justify-between gap-3">
               <h3 className="font-bold text-gray-800 text-[15px] leading-snug">{type.name_lt}</h3>
               <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-white border border-gray-200 text-gray-500 uppercase tracking-wide flex-shrink-0">
-                {STRENGTH_LABEL[type.match_strength]}
+                {t.result.strengthLabels[type.match_strength]}
               </span>
             </div>
 
-            {/* Short explanation */}
+            {/* Short explanation (engine-generated, Lithuanian) */}
             <p className="text-sm text-gray-600 leading-relaxed">{type.explanation_lt}</p>
 
             {/* What the scammer wants */}
             <div>
               <p className="text-xs font-semibold text-gray-500 mb-1 flex items-center gap-1.5">
-                <span aria-hidden="true">🎯</span> Ko siekia sukčius
+                <span aria-hidden="true">🎯</span> {t.result.detectedGoal}
               </p>
               <p className="text-sm text-gray-700 leading-snug">{type.scammer_goal_lt}</p>
             </div>
@@ -489,7 +479,7 @@ function DetectedScamTypesSection({
               <p className={`text-xs font-semibold mb-1 flex items-center gap-1.5 ${
                 prominentSafeAction ? 'text-emerald-800' : 'text-gray-500'
               }`}>
-                <span aria-hidden="true">🛡️</span> Saugus veiksmas
+                <span aria-hidden="true">🛡️</span> {t.result.detectedSafeAction}
               </p>
               <p className={`text-sm leading-snug ${
                 prominentSafeAction ? 'text-emerald-900 font-medium' : 'text-gray-700'
@@ -502,7 +492,7 @@ function DetectedScamTypesSection({
             {type.source_labels_lt.length > 0 && (
               <div className="pt-1">
                 <p className="text-[10px] text-gray-400 mb-1.5">
-                  Susiję šaltinių tipai (ne įrodymas):
+                  {t.result.detectedSources}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {type.source_labels_lt.map((label, i) => (
@@ -523,16 +513,17 @@ function DetectedScamTypesSection({
 // ─── FIX C2: URL analysis — no "Greičiausiai saugu" overclaim ────────────────
 
 function UrlSection({ analysis }: { analysis: UrlAnalysisResult }) {
+  const { t } = useLanguage()
   const [open, setOpen] = useState(false)
 
   // FIX C2: updated verdict labels — no 'likely_safe' → 'no_flags_found'
-  const VERDICT_CONFIG = {
-    suspicious:    { label: 'Įtartina',            bg: 'bg-red-100',    text: 'text-red-700' },
-    unknown:       { label: 'Neatpažinta',          bg: 'bg-amber-100',  text: 'text-amber-700' },
-    no_flags_found:{ label: 'Įtartumo nerasta*',   bg: 'bg-gray-100',   text: 'text-gray-600' },
-  } satisfies Record<UrlAnalysisResult['verdict'], { label: string; bg: string; text: string }>
+  const VERDICT_STYLE = {
+    suspicious:    { bg: 'bg-red-100',    text: 'text-red-700' },
+    unknown:       { bg: 'bg-amber-100',  text: 'text-amber-700' },
+    no_flags_found:{ bg: 'bg-gray-100',   text: 'text-gray-600' },
+  } satisfies Record<UrlAnalysisResult['verdict'], { bg: string; text: string }>
 
-  const vc = VERDICT_CONFIG[analysis.verdict]
+  const vc = VERDICT_STYLE[analysis.verdict]
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
@@ -543,7 +534,7 @@ function UrlSection({ analysis }: { analysis: UrlAnalysisResult }) {
         <div className="flex items-center gap-3">
           <span className="text-lg" aria-hidden="true">🔗</span>
           <div>
-            <p className="font-bold text-gray-800 text-sm">Techninis URL patikrinimas</p>
+            <p className="font-bold text-gray-800 text-sm">{t.result.urlSectionTitle}</p>
             <p className="text-xs text-gray-400 mt-0.5 font-mono truncate max-w-[200px]">
               {analysis.domain_extracted}
             </p>
@@ -551,7 +542,7 @@ function UrlSection({ analysis }: { analysis: UrlAnalysisResult }) {
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${vc.bg} ${vc.text}`}>
-            {vc.label}
+            {t.result.urlVerdicts[analysis.verdict]}
           </span>
           <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
         </div>
@@ -560,13 +551,13 @@ function UrlSection({ analysis }: { analysis: UrlAnalysisResult }) {
       {open && (
         <div className="border-t border-gray-100 px-5 pt-4 pb-5 space-y-3 animate-fade-in">
           <div className="grid grid-cols-2 gap-2">
-            <InfoPill label="Sutrumpinta" value={analysis.shortener_detected ? '⚠️ Taip' : '✓ Ne'} />
-            <InfoPill label="Imitacija"   value={analysis.brand_impersonation_detected ? '⚠️ Aptikta' : '✓ Nerasta'} />
+            <InfoPill label={t.result.urlShortened} value={analysis.shortener_detected ? t.result.urlYes : t.result.urlNo} />
+            <InfoPill label={t.result.urlImpersonation} value={analysis.brand_impersonation_detected ? t.result.urlDetected : t.result.urlNotFound} />
           </div>
 
           {analysis.tld_flags.length > 0 && (
             <div className="space-y-1">
-              <p className="text-xs font-semibold text-gray-500">Domeno galūnė:</p>
+              <p className="text-xs font-semibold text-gray-500">{t.result.urlTldLabel}</p>
               {analysis.tld_flags.map((f, i) => (
                 <p key={i} className="text-xs bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg">{f}</p>
               ))}
@@ -574,13 +565,13 @@ function UrlSection({ analysis }: { analysis: UrlAnalysisResult }) {
           )}
 
           <div className="space-y-1">
-            <p className="text-xs font-semibold text-gray-500">Pastabos:</p>
+            <p className="text-xs font-semibold text-gray-500">{t.result.urlNotesLabel}</p>
             {analysis.pattern_notes.map((n, i) => (
               <p key={i} className="text-xs bg-gray-50 text-gray-600 px-3 py-1.5 rounded-lg">{n}</p>
             ))}
           </div>
 
-          {/* FIX C2: disclaimer always shown */}
+          {/* FIX C2: disclaimer always shown (engine-generated warning, Lithuanian) */}
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
             <p className="text-xs text-amber-700 leading-relaxed">
               * {analysis.warning}
@@ -604,6 +595,7 @@ function InfoPill({ label, value }: { label: string; value: string }) {
 // ─── FIX C3: Human review form with prominent prototype disclaimer ─────────────
 
 function HumanReviewForm({ caseId, onClose }: { caseId: string; onClose: () => void }) {
+  const { t } = useLanguage()
   const [email, setEmail]     = useState('')
   const [notes, setNotes]     = useState('')
   const [urgency, setUrgency] = useState<'normal' | 'urgent'>('normal')
@@ -615,16 +607,19 @@ function HumanReviewForm({ caseId, onClose }: { caseId: string; onClose: () => v
         {/* FIX C3: Clear prototype notice on confirmation */}
         <div className="bg-amber-100 border border-amber-300 rounded-xl p-3 mb-4">
           <p className="text-xs font-semibold text-amber-800">
-            ⚠️ Prototipo pastaba: žmogaus peržiūra šiame prototype nėra aktyvi.
-            Jei turite skubios situacijos — kreipkitės į banką arba policiją (112).
+            {t.humanReview.submittedProtoNote}
           </p>
         </div>
         <div className="text-center">
           <p className="text-3xl mb-2">✓</p>
-          <p className="font-bold text-blue-900 mb-1">Prašymas užregistruotas</p>
+          <p className="font-bold text-blue-900 mb-1">{t.humanReview.submittedTitle}</p>
           <p className="text-sm text-blue-700">
-            Byla <span className="font-mono font-semibold">{caseId}</span> bus peržiūrėta,
-            kai žmogaus peržiūros sistema bus aktyvi.
+            {t.humanReview.submittedBody.split('{caseId}').map((part, i, arr) => (
+              <span key={i}>
+                {part}
+                {i < arr.length - 1 && <span className="font-mono font-semibold">{caseId}</span>}
+              </span>
+            ))}
           </p>
         </div>
       </div>
@@ -637,12 +632,12 @@ function HumanReviewForm({ caseId, onClose }: { caseId: string; onClose: () => v
       className="bg-blue-50 border border-blue-200 rounded-2xl p-5 space-y-4"
     >
       <div className="flex items-center justify-between">
-        <h3 className="font-bold text-blue-900">Prašyti žmogaus peržiūros</h3>
+        <h3 className="font-bold text-blue-900">{t.humanReview.formTitle}</h3>
         <button
           type="button"
           onClick={onClose}
           className="text-blue-400 hover:text-blue-600 transition-colors text-lg leading-none"
-          aria-label="Uždaryti"
+          aria-label={t.humanReview.closeAria}
         >
           ✕
         </button>
@@ -651,47 +646,51 @@ function HumanReviewForm({ caseId, onClose }: { caseId: string; onClose: () => v
       {/* FIX C3: Prototype warning — prominent, before the form */}
       <div className="bg-amber-100 border border-amber-300 rounded-xl px-3 py-2.5">
         <p className="text-xs font-semibold text-amber-800 leading-relaxed">
-          ⚠️ <strong>Prototipo versija:</strong> žmogaus peržiūra šiame prototype nėra aktyvi.
-          Jei situacija skubi — nedelsdami susisiekite su banku arba kreipkitės į policiją.
+          {t.humanReview.protoWarning}
         </p>
       </div>
 
       <p className="text-sm text-blue-700">
-        Jūsų byla <span className="font-mono font-semibold">{caseId}</span> bus peržiūrėta kai sistema bus paleista.
+        {t.humanReview.caseLine.split('{caseId}').map((part, i, arr) => (
+          <span key={i}>
+            {part}
+            {i < arr.length - 1 && <span className="font-mono font-semibold">{caseId}</span>}
+          </span>
+        ))}
       </p>
 
       <div>
         <label className="block text-xs font-semibold text-blue-800 mb-1.5">
-          El. paštas <span className="font-normal text-blue-500">(neprivaloma)</span>
+          {t.humanReview.emailLabel} <span className="font-normal text-blue-500">{t.humanReview.optional}</span>
         </label>
         <input
           type="email"
           value={email}
           onChange={e => setEmail(e.target.value)}
-          placeholder="jusu@pastas.lt"
+          placeholder={t.humanReview.emailPlaceholder}
           className="w-full px-3 py-2.5 rounded-lg border border-blue-200 bg-white text-sm focus:outline-none focus:border-blue-400 transition-colors"
         />
       </div>
 
       <div>
         <label className="block text-xs font-semibold text-blue-800 mb-1.5">
-          Papildomas komentaras <span className="font-normal text-blue-500">(neprivaloma)</span>
+          {t.humanReview.notesLabel} <span className="font-normal text-blue-500">{t.humanReview.optional}</span>
         </label>
         <textarea
           value={notes}
           onChange={e => setNotes(e.target.value)}
-          placeholder="Pvz.: jau pervedžiau pinigų, noriu patvirtinti ar tai sukčiavimas..."
+          placeholder={t.humanReview.notesPlaceholder}
           rows={3}
           className="w-full px-3 py-2.5 rounded-lg border border-blue-200 bg-white text-sm resize-none focus:outline-none focus:border-blue-400 transition-colors"
         />
       </div>
 
       <div>
-        <p className="text-xs font-semibold text-blue-800 mb-2">Skubumas</p>
+        <p className="text-xs font-semibold text-blue-800 mb-2">{t.humanReview.urgencyLabel}</p>
         <div className="grid grid-cols-2 gap-2">
           {[
-            { value: 'normal', label: 'Įprasta', sub: 'iki 24 val.' },
-            { value: 'urgent', label: '⚡ Skubu', sub: 'galimas pavojus' },
+            { value: 'normal', label: t.humanReview.normalLabel, sub: t.humanReview.normalSub },
+            { value: 'urgent', label: t.humanReview.urgentLabel, sub: t.humanReview.urgentSub },
           ].map(opt => (
             <button
               key={opt.value}
@@ -714,7 +713,7 @@ function HumanReviewForm({ caseId, onClose }: { caseId: string; onClose: () => v
         type="submit"
         className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm transition-colors"
       >
-        Pateikti prašymą
+        {t.humanReview.submit}
       </button>
     </form>
   )

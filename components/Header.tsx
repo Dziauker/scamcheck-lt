@@ -2,15 +2,18 @@
 
 import Link from 'next/link'
 import { PUBLIC_VERSION_LABEL } from '@/constants/appMeta'
+import { useLanguage } from '@/lib/i18n/useLanguage'
+import LanguageSwitcher from '@/components/LanguageSwitcher'
 
 interface HeaderProps {
   showBack?: boolean  // FIX H4: show back link on result page
 }
 
 export default function Header({ showBack = false }: HeaderProps) {
+  const { t } = useLanguage()
   return (
     <header className="bg-ink-900 text-white px-4 py-3.5 sticky top-0 z-50 shadow-sm">
-      <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
+      <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
         <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
           <ShieldLogo />
           <span className="font-bold text-base tracking-tight leading-none">ScamCheck LT</span>
@@ -19,7 +22,7 @@ export default function Header({ showBack = false }: HeaderProps) {
           </span>
         </Link>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* FIX H4: back button on result page so user doesn't need to scroll */}
           {showBack && (
             <Link
@@ -27,14 +30,11 @@ export default function Header({ showBack = false }: HeaderProps) {
               className="flex items-center gap-1.5 text-sm text-blue-200 hover:text-white transition-colors font-medium"
             >
               <ArrowLeftIcon />
-              Tikrinti kitą
+              <span className="hidden sm:inline">{t.header.back}</span>
             </Link>
           )}
-          {!showBack && (
-            <span className="text-[10px] font-mono text-blue-300 uppercase tracking-wider sm:hidden">
-              {PUBLIC_VERSION_LABEL}
-            </span>
-          )}
+          {/* v0.4: public language switcher (LT | EN | DE | RU) */}
+          <LanguageSwitcher />
         </div>
       </div>
     </header>

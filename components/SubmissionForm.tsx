@@ -6,42 +6,40 @@ import { CATEGORIES } from '@/constants/categories'
 import { DEMO_EXAMPLES, DemoExample } from '@/constants/demoExamples'
 import { getMockAnalysis } from '@/lib/mockAnalysis'
 import { MessageCategory, Situation, SubmissionInput } from '@/lib/types'
+import { useLanguage } from '@/lib/i18n/useLanguage'
 
 type FormState = 'idle' | 'analyzing'
 
-const LOADING_STEPS = [
-  'Analizuojama žinutė...',
-  'Tikrinami rizikos požymiai...',
-  'Vertinami sukčiavimo šablonai...',
-  'Ruošiamas rezultatas...',
-]
-
-const SITUATIONS: { value: Situation; label: string; severe?: boolean }[] = [
-  { value: 'none',              label: 'Dar nieko nedariau' },
-  { value: 'clicked_link',      label: 'Jau paspaudžiau nuorodą' },
-  { value: 'entered_card',      label: 'Jau įvedžiau kortelės duomenis',         severe: true },
-  { value: 'confirmed_smartid', label: 'Jau patvirtinau Smart-ID / Mobile-ID',   severe: true },
-  { value: 'sent_money',        label: 'Jau pervedžiau pinigus',                  severe: true },
+// Situation values + severity stay fixed; labels come from translations.
+const SITUATIONS: { value: Situation; severe?: boolean }[] = [
+  { value: 'none' },
+  { value: 'clicked_link' },
+  { value: 'entered_card',      severe: true },
+  { value: 'confirmed_smartid', severe: true },
+  { value: 'sent_money',        severe: true },
 ]
 
 export default function SubmissionForm() {
   const router = useRouter()
+  const { t } = useLanguage()
   const [state, setState]         = useState<FormState>('idle')
   const [category, setCategory]   = useState<MessageCategory | null>(null)
   const [situation, setSituation] = useState<Situation>('none')
   const [text, setText]           = useState('')
   const [url, setUrl]             = useState('')
   const [error, setError]         = useState('')
-  const [loadingMsg, setLoadingMsg] = useState(LOADING_STEPS[0])
+  const [loadingMsg, setLoadingMsg] = useState('')
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const canSubmit = category !== null && text.trim().length >= 10
 
   function startLoading() {
+    const steps = t.form.loadingSteps
     let i = 0
+    setLoadingMsg(steps[0])
     intervalRef.current = setInterval(() => {
-      i = (i + 1) % LOADING_STEPS.length
-      setLoadingMsg(LOADING_STEPS[i])
+      i = (i + 1) % steps.length
+      setLoadingMsg(steps[i])
     }, 850)
   }
   function stopLoading() {
@@ -61,8 +59,8 @@ export default function SubmissionForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!canSubmit || !category) return
-    if (text.trim().length < 10) { setError('Įveskite bent 10 simbolių tekstą.'); return }
-    if (text.length > 5000)      { setError('Tekstas per ilgas (max 5000 simbolių).'); return }
+    if (text.trim().length < 10) { setError(t.form.errorMinChars); return }
+    if (text.length > 5000)      { setError(t.form.errorTooLong); return }
 
     setError('')
     setState('analyzing')
@@ -86,7 +84,7 @@ export default function SubmissionForm() {
     } catch {
       stopLoading()
       setState('idle')
-      setError('Įvyko klaida. Bandykite dar kartą.')
+      setError(t.form.errorGeneric)
     }
   }
 
@@ -103,7 +101,7 @@ export default function SubmissionForm() {
       {/* Situation selector */}
       <fieldset>
         <legend className="block text-sm font-semibold text-gray-800 mb-2">
-          Kas jau įvyko?
+          {t.form.situationLegend}
         </legend>
         <div className="flex flex-col gap-1.5">
           {SITUATIONS.map(s => {
@@ -142,7 +140,7 @@ export default function SubmissionForm() {
                     <span className={`w-2 h-2 rounded-full ${s.severe ? 'bg-red-500' : 'bg-brand'}`} />
                   )}
                 </span>
-                <span className="font-medium">{s.label}</span>
+                <span className="font-medium">{t.form.situations[s.value]}</span>
               </label>
             )
           })}
@@ -155,13 +153,13 @@ export default function SubmissionForm() {
       {/* Textarea (visually dominant) */}
       <div>
         <label htmlFor="msg-text" className="block text-sm font-semibold text-gray-800 mb-2">
-          Įklijuokite įtartiną tekstą <span className="text-red-500">*</span>
+          {t.form.textareaLabel} <span className="text-red-500">*</span>
         </label>
         <textarea
           id="msg-text"
           value={text}
           onChange={e => setText(e.target.value)}
-          placeholder="Įklijuokite žinutę, SMS, el. laišką ar skelbimo tekstą čia..."
+          placeholder={t.form.textareaPlaceholder}
           rows={8}
           maxLength={5000}
           className="
@@ -172,7 +170,7 @@ export default function SubmissionForm() {
           "
         />
         <div className="flex justify-between mt-1">
-          <span className="text-xs text-gray-400">Min. 10 simbolių</span>
+          <span className="text-xs text-gray-400">{t.form.minChars}</span>
           <span className={`text-xs ${text.length > 4500 ? 'text-orange-500 font-medium' : 'text-gray-400'}`}>
             {text.length} / 5000
           </span>
@@ -182,7 +180,7 @@ export default function SubmissionForm() {
       {/* Category chips */}
       <fieldset>
         <legend className="block text-sm font-semibold text-gray-800 mb-2">
-          Žinutės tipas <span className="text-red-500">*</span>
+          {t.form.categoryLegend} <span className="text-red-500">*</span>
         </legend>
         <div className="flex flex-wrap gap-2">
           {CATEGORIES.map(cat => {
@@ -200,7 +198,7 @@ export default function SubmissionForm() {
                   }
                 `}
               >
-                {cat.chipLabel}
+                {t.form.categoryChips[cat.value]}
               </button>
             )
           })}
@@ -210,14 +208,14 @@ export default function SubmissionForm() {
       {/* Optional URL */}
       <div>
         <label htmlFor="url-input" className="block text-sm font-semibold text-gray-800 mb-2">
-          Nuoroda <span className="text-xs font-normal text-gray-500">(neprivaloma)</span>
+          {t.form.urlLabel} <span className="text-xs font-normal text-gray-500">{t.form.urlOptional}</span>
         </label>
         <input
           id="url-input"
           type="text"
           value={url}
           onChange={e => setUrl(e.target.value)}
-          placeholder="https://..."
+          placeholder={t.form.urlPlaceholder}
           className="
             w-full px-4 py-3 rounded-xl border-2 border-gray-200
             bg-white text-gray-700 placeholder-gray-400 font-mono text-sm
@@ -225,7 +223,7 @@ export default function SubmissionForm() {
           "
         />
         <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-          Nuorodos neatidarome — prototipas tik pasyviai tikrina jos formą ir domeno požymius.
+          {t.form.urlHelp}
         </p>
       </div>
 
@@ -247,11 +245,11 @@ export default function SubmissionForm() {
           }
         `}
       >
-        Analizuoti riziką →
+        {t.form.submit}
       </button>
 
       <p className="text-center text-xs text-gray-400 pb-1">
-        Demo vertinimas · Prototipe tekstas apdorojamas tik naršyklės sesijoje
+        {t.form.footerNote}
       </p>
     </form>
   )
@@ -260,11 +258,12 @@ export default function SubmissionForm() {
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 function DemoExamplesBlock({ onPick }: { onPick: (ex: DemoExample) => void }) {
+  const { t } = useLanguage()
   return (
     <div>
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-        Demo pavyzdžiai
-        <span className="font-normal text-gray-400 normal-case tracking-normal"> (paspaudus užpildo formą)</span>
+        {t.form.demoExamplesTitle}
+        <span className="font-normal text-gray-400 normal-case tracking-normal"> {t.form.demoExamplesHint}</span>
       </p>
       <div className="flex flex-wrap gap-1.5">
         {DEMO_EXAMPLES.map(ex => (
@@ -274,7 +273,7 @@ function DemoExamplesBlock({ onPick }: { onPick: (ex: DemoExample) => void }) {
             onClick={() => onPick(ex)}
             className="text-xs px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300 text-gray-700 transition-colors"
           >
-            {ex.label}
+            {t.form.demoExamples[ex.id] ?? ex.label}
           </button>
         ))}
       </div>
@@ -283,18 +282,20 @@ function DemoExamplesBlock({ onPick }: { onPick: (ex: DemoExample) => void }) {
 }
 
 function PrivacyWarning() {
+  const { t } = useLanguage()
   return (
     <div className="bg-amber-50 border-l-4 border-amber-400 rounded-r-lg px-3.5 py-2.5">
       <p className="text-xs text-amber-900 leading-relaxed">
-        <span className="font-semibold">Saugumo priminimas: </span>
-        Neįklijuokite slaptažodžių, CVV, Smart-ID kodų ar pilnų kortelės numerių.
+        <span className="font-semibold">{t.form.privacyReminderLabel}</span>
+        {t.form.privacyReminderText}
       </p>
     </div>
   )
 }
 
 function LoadingScreen({ message, category }: { message: string; category: MessageCategory | null }) {
-  const catLabel = CATEGORIES.find(c => c.value === category)?.label ?? ''
+  const { t } = useLanguage()
+  const catLabel = category ? t.result.categoryNames[category] : ''
   return (
     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
       <div className="relative w-20 h-20 mb-8">
@@ -315,8 +316,8 @@ function LoadingScreen({ message, category }: { message: string; category: Messa
       )}
       <p className="text-lg font-bold text-gray-800 mb-2">{message}</p>
       <p className="text-sm text-gray-500 max-w-xs leading-relaxed">
-        Tikrinami sukčiavimo šablonai.<br />
-        Tai užtruks kelias sekundes.
+        {t.form.loadingScanning}<br />
+        {t.form.loadingWait}
       </p>
 
       <div className="flex gap-1.5 mt-7">
